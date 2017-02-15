@@ -1,0 +1,336 @@
+---
+title: "Homework 2"
+output:
+  html_notebook: default
+  html_document: default
+---
+
+## Part I
+
+#### Ch4.5 Occupational Mobility 
+```{r message=FALSE}
+library("tidyverse")
+library("grid")
+library("gridExtra")
+library("scales")
+library("GGally")
+```
+
+```{r message=FALSE}
+data(Yamaguchi87, package="vcdExtra")
+Yamaguchi87 <- tbl_df(Yamaguchi87)
+```
+
+```{r}
+grid_arrange_shared_legend <- function(..., ncol = length(list(...)), nrow = 1, position = c("bottom", "right")) {
+  plots <- list(...)
+  position <- match.arg(position)
+  g <- ggplotGrob(plots[[1]] + theme(legend.position = position))$grobs
+  legend <- g[[which(sapply(g, function(x) x$name) == "guide-box")]]
+  lheight <- sum(legend$height)
+  lwidth <- sum(legend$width)
+  gl <- lapply(plots, function(x) x + theme(legend.position="none"))
+  gl <- c(gl, ncol = ncol, nrow = nrow)
+  combined <- switch(position,
+                     "bottom" = arrangeGrob(do.call(arrangeGrob, gl),
+                                            legend,
+                                            ncol = 1,
+                                            heights = unit.c(unit(1, "npc") - lheight, lheight)),
+                     "right" = arrangeGrob(do.call(arrangeGrob, gl),
+                                           legend,
+                                           ncol = 2,
+                                           widths = unit.c(unit(1, "npc") - lwidth, lwidth)))
+  grid.newpage()
+  grid.draw(combined)
+}
+```
+
+```{r ch45}
+p45a <- Yamaguchi87 %>% 
+  select(Country, Son, Freq) %>% 
+  group_by(Country, Son) %>% 
+  summarise(Freq = sum(Freq)) %>% 
+  mutate(Percentage=Freq/sum(Freq)) %>% 
+  mutate(Occupation=Son) %>% 
+  ggplot(aes(x=Occupation, y=Percentage, fill=Occupation)) +
+  geom_bar(stat="identity") +
+  facet_grid(. ~ Country) +
+  ggtitle("(a) Distributions of Sons' Occupations in Three Countries") + 
+  xlab("") + ylab("") +
+  scale_y_continuous(labels=percent) +
+  scale_fill_brewer(palette="RdPu") +
+  theme_linedraw()
+
+p45b <- Yamaguchi87 %>% 
+  filter(Country=="UK") %>% 
+  select(-Country) %>% 
+  gather(Generation, Occupation, -Freq) %>% 
+  group_by(Generation, Occupation) %>% 
+  summarise(Freq = sum(Freq)) %>% 
+  mutate(Percentage=Freq/sum(Freq)) %>% 
+  mutate(Occupation=factor(Occupation, levels = c("UpNM", "LoNM", "UpM", "LoM", "Farm"))) %>% 
+  ggplot(aes(x=Occupation, y=Percentage, fill=Occupation)) +
+  geom_bar(stat="identity") +
+  facet_grid(. ~ Generation) +
+  ggtitle("(b) Distributions of Fathers' and Sons' occupations in UK") + 
+  xlab("") + ylab("") +
+  scale_y_continuous(labels=percent) +
+  scale_fill_brewer(palette="RdPu") +
+  theme_linedraw() 
+
+grid_arrange_shared_legend(p45a, p45b, ncol = 1, nrow = 2)
+```
+
+a. `US` and `UK` have similar distribution among occupations, however `Japan` is different than them. We can see the percentage of each occupation in `Japan` is more balanced.
+
+b. They are similar, but the percentage of `Up Mon-Manual` increased and the percentage of `Farm` decreased from `Father` to `Son`.
+
+c. The results are what I would have expected. Data of these three countries were derived from surveys in early 1970s. At that time, `UK` and `US` are more developed and industrialized than `Japan`, so thy have more people work in non-agriculture area as what we see in `Figure (a)`. With the growth of economy and technology, machines replaced more and more human workers, so the percentage of people who work in farm and low manual area decresed and the percentage of people working in non-manual area increased, which match what we see in `Figure (b)`.  
+
+***
+
+#### Ch4.6 Whisky 
+```{r message=FALSE}
+data(Scotch, package="bayesm")
+Scotch <- tbl_df(Scotch)
+```
+
+```{r ch46a}
+Scotch %>% 
+  gather(Brand, Count) %>% 
+  filter(Brand!='Other.Brands') %>%
+  group_by(Brand) %>% 
+  summarise(Consumption = sum(Count)) %>% 
+  ggplot(aes(x=reorder(Brand, Consumption), y=Consumption, fill=Consumption)) +
+  geom_bar(stat="identity") + 
+  coord_flip() +
+  xlab("Brand") +
+  ggtitle("(a) Consumption per Brand I") + 
+  scale_fill_gradient(low="blue", high="red") +
+  theme_linedraw() 
+```
+
+a. According to consumption data showing in `Graph (a)`, `Chivas.Regal` is the best brand.
+
+b. Since there's a obvious gap between `Glenfiddich` and `Pinch..Haig.` on the graph and the number of consumption for these two are `334` and `117`, I would pick a number in between, let's say 200 as the cutoff for big brand.
+
+```{r message=FALSE}
+data(whiskey, package="flexmix")
+
+w1 <- tbl_df(data.frame(whiskey$Incidence * whiskey$Freq)) %>% 
+  gather(Brand, Count) %>% 
+  group_by(Brand) %>% 
+  summarise(Consumption = sum(Count))
+
+w2 <- tbl_df(whiskey_brands) %>% 
+  mutate(Brand=gsub("([^a-zA-Z])", ".", Brand))
+    
+whiskey_all <- left_join(w1, w2, by=c("Brand" = "Brand"))
+```
+
+```{r ch46c}
+whiskey_all %>% 
+  filter(Brand!='Other.brands') %>% 
+  ggplot(aes(x=Consumption, y=reorder(Brand, Consumption))) +
+  geom_segment(aes(yend=Brand), xend=0, color='grey50') + 
+  geom_point(size=3, aes(color=Bottled)) + 
+  facet_grid(Type ~ ., scales='free_y', space='free_y') +
+  ylab("Brand") +
+  ggtitle("(c) Consumption per Brand II") + 
+  scale_color_manual(values = c("royalblue1", "violetred1")) +
+  theme_linedraw()
+```
+
+d. From the help document, by looking at the `Bottled` category, we see that most of the Brands are coming from outside United States, so I think "whisky" is better.
+
+***
+
+#### Ch5.8 Olive oils from Italy
+```{r message=FALSE}
+data(olives, package="extracat")
+olives <- tbl_df(olives)
+```
+
+```{r ch58a, message=FALSE}
+olives %>%
+  ggpairs(columns=3:10, 
+          ggplot2::aes(color="orangered1"),
+          lower=list(continuous=wrap("points", alpha=0.3, size=0.1)), 
+          diag=list(continuous=wrap("densityDiag", alpha=0.7, size=0.1), axisLabels='none'), 
+          upper=list(continuous=wrap("cor", size=rel(3)))
+          ) +
+  theme_linedraw() +
+  theme(
+    text=element_text(size = 7),
+    axis.text=element_text(size = 6), 
+    axis.text.x=element_text(angle = 60))
+```
+
+a. From the plot above we can tell `Palmitoleic` and `Palmitic` are strongly positively associated. `Oleic` and `Palmitic`, `Oleic` and `Palmitoleic` are strongly negatively associated.
+
+b. Yes. All the scatter plots of `Eicosenoic` with others have many outliers stay at the bottom, and look like some line shape. 
+
+***
+
+#### Ch5.10 Hertzsprung-Russell
+```{r}
+data("HRstars", package="GDAdata")
+HRstars <- tbl_df(HRstars)
+```
+
+```{r}
+HRstars %>% 
+  ggplot(aes(x=BV, y=V, color=BV)) +
+  geom_point(alpha=.3, size=.7) +
+  scale_color_gradient(low="blue", high="red") +
+  xlab("Color (BV)") + ylab("Absolute Maganitude (V)") +
+  scale_y_reverse() +
+  theme_linedraw() 
+```
+![](https://upload.wikimedia.org/wikipedia/commons/6/6b/HRDiagram.png)
+
+a. Compare with the graph from Wikipedia, they are similar. Graph drawn from `HRstars` clearly shows `White Dwarfs`, `V Main Sequence` and `III Giants`. But it is probabaly due to the small dataset we have, it is not as clear as the one on Wikipedia, and lacks of details.
+
+b. Compare to my graph, it seems like the graph from Wiki contains more data with `BV` = 0.  
+
+c. I colored dots by variable BV. And from the graph I made, it shows a very obvious trend from left top to right bottom.  
+
+
+```{r}
+data("HRstars", package="GDAdata")
+HRstars <- tbl_df(HRstars)
+```
+
+***
+
+#### Ch6.5 Bodyfat
+```{r message=FALSE}
+data(bodyfat, package="MMST")
+bodyfat <- tbl_df(bodyfat)
+```
+
+```{r}
+bodyfat %>% 
+  ggparcoord(alphaLines=0.2, scale="uniminmax", groupColumn="age") +
+  xlab("") + ylab("") +
+  # scale_color_gradient(low="blue", high="red") +
+  theme_linedraw() +
+  theme(axis.text.x=element_text(angle = 15))
+```
+
+a. Yes, there are outliers. Individual outliers can be seen on most of the variables (`weight`, `neck`, `chest`, `abdomen`, `hip`, `thign`, `knee`, `ankle` and `biceps`). Outliers here are usually extreme values.
+
+b. `Height` has many small subgroups and some positive correlation with `weight` and .
+
+c. `density` and `bodyfat` are strongly negative correlated.
+
+d. Yes. Because if we put the first two variables far away from each other, it will be impossible to see the negative correlation. After reordering the variables, I got a graph belowe, this new graph does a better job on showing correlations.   
+
+
+```{r}
+# 1	density
+# 2	 "bodyfat"
+# 3	 "age"
+# 4	 "weight"
+# 5	 "height"
+# 6	 "neck"
+# 7	 "chest"
+# 8	 "abdomen"
+# 9	 "hip"
+# 10	 "thigh"
+# 11	 "knee"
+# 12	 "ankle"
+# 13	 "biceps"
+# 14	 "forearm"
+# 15	 "wrist"
+
+bodyfat %>% 
+  ggparcoord(alphaLines=0.2, scale="uniminmax",
+             order=c(2,15,11,3,10,1,4,5,9,13,12,14,8,6,7), 
+             groupColumn="age") +
+  xlab("") + ylab("") +
+  # scale_colour_manual(values = c("#00BFC4")) +
+  theme_linedraw() +
+  theme(axis.text.x=element_text(angle = 15))
+```
+
+***
+
+#### Ch6.7 Wine
+```{r}
+data(wine, package="MMST")
+wine_mmst <- tbl_df(wine)
+
+data(wine, package="pgmm")
+wine_pgmm <- tbl_df(wine)
+
+wine_pgmm <- wine_pgmm %>% 
+  mutate_all(funs(as.numeric)) %>% 
+  mutate_at(vars(Type), funs(as.factor))
+
+wine_classname <- wine_mmst %>% 
+  select(Class=class, classdigit) %>% 
+  distinct()
+
+wine_all <- left_join(wine_pgmm, wine_classname, by=c("Type" = "classdigit"))
+```
+
+```{r}
+wine_all %>% 
+  ggparcoord(columns=2:28, groupColumn="Class", alphaLines=0.2, scale="uniminmax", order="anyClass") +
+  xlab("") + ylab("") +
+  coord_flip() +
+  scale_colour_manual(values = c("royalblue1", "black", "violetred1")) +
+  # scale_color_brewer(palette="Dark2") +
+  theme_linedraw()
+```
+
+a. From the pcp, we can clearly see that, `Flavanoids` seems to be able to separate these three clases. `Proline`, `OD280/OD315 of Diluted Wines`, `OD280/OD315 of Flavanoids`, `Hue`, `Alcohol` maybe helpful to separate one class from the other two.
+
+b. Yes, there are outliers. From the graph we can find that `Flavanoids` has one on the right clearly, as well as `Chloride`.
+
+
+```{r}
+wine_all %>% 
+  ggparcoord(columns=2:28, alphaLines=0.2, scale="uniminmax", groupColumn="Class") +
+  xlab("") + ylab("") +
+  ggtitle("") + 
+  facet_grid(~Class) +
+  coord_flip() +
+  scale_colour_manual(values = c("royalblue1", "black", "violetred1")) +
+  theme_linedraw() + 
+  theme(panel.spacing.x=unit(0.8, "lines"))
+```
+
+c. By looking at the pcp of each class separately, we can observe evidence of several subgroups: `Color Intensity` in class `Barbera`, `Malic Acid` in class `Barolo` and `Total Phenols` in class `Grignolino`  
+
+***
+
+## Part II
+
+#### Olive oils from Italy
+```{r message=F}
+olives %>%
+  ggpairs(columns=3:10, 
+          lower=list(continuous=wrap("points", alpha=0.3, size=0.1)), 
+          diag=list(continuous=wrap("densityDiag", alpha=0.7, size=0.1), axisLabels='none'), 
+          upper=list(continuous=wrap("cor", size=1.8)),
+          ggplot2::aes(colour=Region)
+          ) +
+  theme_linedraw() +
+  theme(
+    text=element_text(size = 7),
+    axis.text=element_text(size = 6), 
+    axis.text.x=element_text(angle = 30))
+```
+
+By coloring the scatter plot by `Region`, it is very clear that there's some special pattern for feature `eicosenoic`. From the last row we can tell that all red and green dotc (`North` and `Sardinia` region) stay at the bottom. 
+
+
+#### Bodyfat
+```{r}
+bodyfat %>%
+  ggcorr(label = TRUE, label_size = 3, label_round = 2, label_alpha = TRUE, low = "royalblue1", mid = "#EEEEEE", high = "violetred1")
+```
+
+
